@@ -62,6 +62,11 @@
   .ga-steps{margin:0;padding-left:20px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
   .ga-steps b{color:var(--ink)}
   .dlg{width:min(520px,100%)}
+  .dlg{position:relative}
+  .dlg-x{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);text-decoration:none}
+  .dlg-x:hover{background:var(--panel-2);color:var(--ink)}
+  .dlg-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+  .gate-brand{padding-right:40px}
   .ov.gate{background:rgba(29,27,52,.86);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
   .gate-brand{display:flex;align-items:center;gap:12px}
   .gate-brand img{width:44px;height:44px;border-radius:12px}
@@ -107,11 +112,13 @@
     removeDialog();
     const ov = document.createElement('div');
     ov.className = 'ov' + (gated ? ' gate' : ''); ov.id = 'acctOv';
-    ov.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">${html}</div>`;
+    // While signed out, an × takes people back to the landing page (not in the Windows/Android apps, which have no landing page).
+    const x = gated && !NATIVE_APP ? `<a class="dlg-x" href="${new URL('./', BASE).href}" aria-label="Close and go back to the home page" title="Back to the home page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a>` : '';
+    ov.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">${x}${html}</div>`;
     ov.addEventListener('mousedown', e => { if (e.target === ov && !gated) closeDialog(); });
     document.body.appendChild(ov);
     onMount?.(ov.querySelector('.dlg'));
-    ov.querySelector('input, button.btn')?.focus();
+    ov.querySelector('input, button.btn')?.focus();   // focus the first field, not the ×
   }
   function removeDialog() { $('#acctOv')?.remove(); }
   // While nobody is signed in, closing any dialog goes back to the sign-in screen instead of the planner.
