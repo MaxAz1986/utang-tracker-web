@@ -1326,7 +1326,7 @@ document.addEventListener('click', e => {
   if (t.id === 'clearExample') { S = structuredClone(BLANK); scheduleSave(); renderAll(); return; }
   if (t.id === 'schedToggle') { showAllSched = !showAllSched; renderSchedule(simulate(S.strategy, totals().budget)); }
 });
-try { const tab = sessionStorage.getItem('utang-tab'); if (tab) document.querySelector(`#tabs [data-tab="${tab}"]`)?.click(); } catch {}
+try { const tab = new URLSearchParams(location.search).get('tab') || sessionStorage.getItem('utang-tab'); if (tab) document.querySelector(`#tabs [data-tab="${CSS.escape(tab)}"]`)?.click(); } catch {}
 
 if (NATIVE?.platform === 'desktop') {
   $('#shareBackup').textContent = 'Save backup file';
