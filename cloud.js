@@ -6,7 +6,8 @@
   const SUPABASE_KEY = 'sb_publishable_M4McmczrkTNObaNlOg8iwA_9kXghFku';   // publishable key: safe to ship; row security protects the data
   const SITE = location.origin + location.pathname.replace(/index\.html$/, '');
   const App = window.UtangApp;
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  const BASE = new URL('.', document.currentScript ? document.currentScript.src : location.href);   // site root (cloud.js lives there)
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register(new URL('sw.js', BASE)).catch(() => {});
   if (!App || !window.supabase) return;
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
@@ -269,7 +270,7 @@
   /* ---------- get the app ---------- */
   const DL = {
     pc: 'https://github.com/MaxAz1986/utang-tracker-web/releases/latest/download/Utang-Tracker-Setup.exe',
-    android: 'downloads/UtangTracker.apk'
+    android: new URL('downloads/UtangTracker.apk', BASE).href
   };
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });

@@ -2,7 +2,7 @@
   "name": "Utang Tracker",
   "short_name": "Utang Tracker",
   "description": "Debt payoff planner: track debts, see what they cost, and plan the fastest way out.",
-  "start_url": "./",
+  "start_url": "app/",
   "scope": "./",
   "display": "standalone",
   "background_color": "#F3F4FA",

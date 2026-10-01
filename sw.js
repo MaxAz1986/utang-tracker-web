@@ -1,6 +1,6 @@
 /* Offline support: the app itself is cached; figures sync with the account when online. */
-const CACHE = 'utang-v4';
-const SHELL = ['./', 'index.html', 'cloud.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+const CACHE = 'utang-v5';
+const SHELL = ['./', 'index.html', 'app/', 'app/index.html', 'cloud.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'fonts/bricolage-grotesque-latin-600-normal.woff2', 'fonts/bricolage-grotesque-latin-800-normal.woff2',
   'fonts/figtree-latin-400-normal.woff2', 'fonts/figtree-latin-600-normal.woff2', 'fonts/figtree-latin-700-normal.woff2',
   'fonts/ibm-plex-mono-latin-500-normal.woff2'];
@@ -11,7 +11,7 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || u.hostname.endsWith('supabase.co')) return;              // account data: always live
   if (e.request.mode === 'navigate' || u.pathname.endsWith('.html') || u.pathname.endsWith('cloud.js')) {
     e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(CACHE).then(x => x.put(e.request, c)); return r; })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('index.html'))));       // newest app when online
+      .catch(() => caches.match(e.request).then(r => r || caches.match(u.pathname.includes('/app/') ? 'app/index.html' : 'index.html'))));       // newest app when online
     return;
   }
   e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
