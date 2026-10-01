@@ -47,7 +47,17 @@
   .dlg .cmp>div{background:var(--panel-2);border-radius:12px;padding:10px;font-size:13px;display:flex;flex-direction:column;gap:2px}
   .dlg .cmp b{font-family:var(--f-display);font-size:17px}
   .btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
-  @media (max-width:520px){ .acct-chip .em{display:none} }`;
+  .ga-list{display:flex;flex-direction:column;gap:10px}
+  .ga-card{border:1.5px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .ga-card.rec{border-color:var(--accent);background:var(--accent-soft)}
+  .ga-top{display:flex;align-items:center;gap:10px}
+  .ga-top>div{display:flex;flex-direction:column;flex:1;min-width:0}
+  .ga-ic{width:36px;height:36px;border-radius:11px;background:var(--hero);color:#fff;display:grid;place-items:center;font:800 16px var(--f-display);flex:none}
+  .ga-card .btn{justify-content:center;text-decoration:none}
+  .ga-steps{margin:0;padding-left:20px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+  .ga-steps b{color:var(--ink)}
+  .dlg{width:min(520px,100%)}
+  @media (max-width:520px){ .acct-chip .em{display:none} .appbar .iconbtn span{display:none} .appbar .iconbtn{padding:8px 10px} }`;
   document.head.appendChild(css);
 
   /* ---------- account button ---------- */
@@ -228,6 +238,48 @@
         dialog(`<h2>Deleted</h2><p>Your figures were deleted from your account and this device.</p><div class="actions"><button class="btn primary" id="okBtn">OK</button></div>`, d => { d.querySelector('#okBtn').onclick = closeDialog; });
       };
     });
+  }
+
+  /* ---------- get the app ---------- */
+  const DL = {
+    pc: 'https://github.com/MaxAz1986/utang-tracker-web/releases/latest/download/Utang-Tracker-Setup.exe',
+    android: 'downloads/UtangTracker.apk'
+  };
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
+  const ua = navigator.userAgent;
+  const isAndroid = /Android/i.test(ua), isIOS = /iPhone|iPad|iPod/i.test(ua), isWin = /Windows/i.test(ua);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  function showGetApp() {
+    const card = (key, title, sub, body, rec) => `<div class="ga-card${rec ? ' rec' : ''}" data-k="${key}">
+      <div class="ga-top"><span class="ga-ic">${title[0]}</span><div><b>${title}</b><span class="small muted">${sub}</span></div>${rec ? '<span class="pill good">For this device</span>' : ''}</div>${body}</div>`;
+    const web = standalone ? '<p class="small muted">You’re already using the installed version.</p>'
+      : installEvt ? `<button class="btn primary" id="gaInstall">Install Utang Tracker</button>`
+      : isIOS ? '<p class="small">In Safari, tap <b>Share</b> then <b>Add to Home Screen</b>.</p>'
+      : '<p class="small">In Chrome or Edge, open the browser menu and choose <b>Install Utang Tracker</b> (or <b>Add to Home screen</b> on Android).</p>';
+    dialog(`<h2>Get the app</h2>
+      <p class="small muted">Use Utang Tracker right here, install this website for sync on every device, or download an offline app.</p>
+      <div class="ga-list">${[
+        [!isWin && !isAndroid || isIOS, card('web', 'Install this website', 'Phone, tablet or PC · syncs with your account', web, !isWin && !isAndroid || isIOS)],
+        [isWin, card('pc', 'Windows PC app', 'Windows 10 or 11 · about 80 MB', `<a class="btn primary" href="${DL.pc}" rel="noopener">Download for Windows</a>
+          <ol class="ga-steps"><li>Open <b>Utang-Tracker-Setup.exe</b>.</li><li>If Windows SmartScreen appears, choose <b>More info → Run anyway</b>. The app isn’t code-signed.</li><li>Follow the setup. It adds a desktop and Start menu shortcut.</li></ol>`, isWin)],
+        [isAndroid, card('android', 'Android app', 'Android 7 or newer · under 1 MB', `<a class="btn primary" href="${DL.android}" download="UtangTracker.apk">Download for Android</a>
+          <ol class="ga-steps"><li>Open the downloaded <b>UtangTracker.apk</b>.</li><li>Allow installs from your browser or Files app when asked.</li><li>If Play Protect warns, choose <b>Install anyway</b>. The app isn’t from the Play Store.</li></ol>`, isAndroid)]
+      ].sort((x, y) => (y[0] ? 1 : 0) - (x[0] ? 1 : 0)).map(x => x[1]).join('')}</div>
+      <p class="note">The Windows and Android apps work fully offline and keep figures on that device only; they don’t sync with your account. Use <b>Backup</b> to move figures between them, or install this website to sync everywhere.</p>
+      <div class="actions"><button class="btn" id="gaClose">Close</button></div>`, dlg => {
+      dlg.querySelector('#gaClose').onclick = closeDialog;
+      const ib = dlg.querySelector('#gaInstall');
+      if (ib) ib.onclick = async () => { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); installEvt = null; if (r?.outcome === 'accepted') closeDialog(); };
+    });
+  }
+  const hb = document.querySelector('#backupBtn');
+  if (hb) {
+    const g = document.createElement('button');
+    g.className = 'iconbtn'; g.id = 'getAppBtn';
+    g.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg><span>Get app</span>';
+    g.addEventListener('click', showGetApp);
+    hb.parentNode.insertBefore(g, hb);
   }
 
   /* ---------- sync ---------- */
