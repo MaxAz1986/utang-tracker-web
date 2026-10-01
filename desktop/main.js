@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Menu } = requir
 const path = require('path');
 const fs = require('fs');
 
+// The planner is the website: one sign-in, one plan, synced with the web and Android.
+const SITE = process.env.UTANG_SITE || 'https://maxaz1986.github.io/utang-tracker-web/';
+const APP_URL = SITE + 'app/';
 const dataFile = () => path.join(app.getPath('userData'), 'utang-data.json');
 let win;
 
@@ -45,7 +48,11 @@ function createWindow() {
   if (start.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
   Menu.setApplicationMenu(null);
-  win.loadFile(path.join(__dirname, 'app', 'index.html'));
+  win.loadURL(APP_URL);
+  // No connection and nothing cached yet: show the offline screen (it has a Try again button).
+  win.webContents.on('did-fail-load', (_e, code, _desc, url, isMain) => {
+    if (isMain && code !== -3 && url.startsWith(SITE)) win.loadFile(path.join(__dirname, 'app', 'offline.html'));
+  });
 
   // Zoom with Ctrl + / Ctrl − / Ctrl 0 and Ctrl + mouse wheel; the level is remembered.
   let zoom = 0;
@@ -66,7 +73,10 @@ function createWindow() {
 
   // Links to websites open in the normal browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-  win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file://')) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url.startsWith(APP_URL) || url.startsWith('file://')) return;      // the planner and the offline screen
+    e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url);
+  });
 }
 
 ipcMain.on('load', e => {
