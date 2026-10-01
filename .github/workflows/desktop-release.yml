@@ -1,0 +1,31 @@
+name: Build Windows app
+on:
+  push:
+    paths: ['desktop/**', '.github/workflows/desktop-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: '20' }
+      - run: npm install --no-audit --no-fund
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - id: ver
+        shell: bash
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Utang Tracker ${{ steps.ver.outputs.v }}
+          body: |
+            Windows installer for Utang Tracker ${{ steps.ver.outputs.v }}.
+            Download **Utang-Tracker-Setup.exe**, run it, and follow the steps. If Windows SmartScreen appears, choose **More info → Run anyway** (the app isn't code-signed).
+          files: desktop/dist/Utang-Tracker-Setup.exe
+          make_latest: true
