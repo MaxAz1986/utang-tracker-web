@@ -90,8 +90,8 @@
     closeMenu();
     const m = document.createElement('div');
     m.className = 'acct-menu'; m.id = 'acctMenu'; m.setAttribute('role', 'menu');
-    m.innerHTML = `<div class="who">Signed in as<br><b>${esc(user.email)}</b><br><span class="plan-line ${isPro() ? 'pro' : ''}">${isPro() ? 'Pro plan' : `Free plan · up to ${FREE_DEBTS} debts`}</span></div>
-      ${isPro() ? '' : '<button data-a="up" role="menuitem">Upgrade to Pro</button>'}
+    m.innerHTML = `<div class="who">Signed in as<br><b>${esc(user.email)}</b><br><span class="plan-line ${isPro() ? 'pro' : ''}">${isPro() ? (plan?.lifetime ? 'Pro plan' : plan?.sub?.status === 'cancelled' ? `Pro until ${esc(fmtDate(plan.until))}` : 'Pro plan · renews monthly') : `Free plan · up to ${FREE_DEBTS} debts`}</span></div>
+      ${isPro() ? (plan?.unset ? '' : '<button data-a="manage" role="menuitem">Manage subscription</button>') : `<button data-a="up" role="menuitem">Upgrade to Pro · ${PRICE}/month</button>`}
       <button data-a="sync" role="menuitem">Sync now</button>
       ${hasPw() ? '<button data-a="pw" role="menuitem">Change password</button>' : ''}
       <button data-a="out" role="menuitem">Sign out</button>
@@ -332,22 +332,35 @@
   const PLAN_KEY = 'utang-plan';
   const isPro = () => !!plan?.pro;
   function applyPlan(p) { plan = p; App.setLimit(p.pro ? Infinity : FREE_DEBTS); renderAcct(); }
+  const PRICE = '₱99';
+  const fmtDate = iso => { try { return new Date(iso).toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return iso; } };
   async function loadPlan() {
     if (!user) return;
     let cached = null; try { cached = JSON.parse(localStorage.getItem(PLAN_KEY)); } catch {}
     if (cached?.uid === user.id) applyPlan(cached); else applyPlan({ uid: user.id, pro: false });
-    const { data, error } = await sb.from('plans').select('tier, pro_until').eq('user_id', user.id).maybeSingle();
+    const [{ data, error }, subRes] = await Promise.all([
+      sb.from('plans').select('tier, pro_until').eq('user_id', user.id).maybeSingle(),
+      sb.from('subscriptions').select('status, current_period_end').eq('user_id', user.id).maybeSingle()
+    ]);
     if (error) {
       // Plans not set up on the server yet: don't limit anyone in the page (the database rule is what really counts).
       if (/PGRST205|42P01|does not exist|schema cache/i.test((error.code || '') + ' ' + (error.message || ''))) applyPlan({ uid: user.id, pro: true, unset: true });
-      return;   // offline: keep the cached plan
+      return plan;   // offline: keep the cached plan
     }
     const pro = data?.tier === 'pro' && (!data.pro_until || new Date(data.pro_until) > new Date());
-    const p = { uid: user.id, pro };
+    const p = { uid: user.id, pro, until: data?.pro_until || null, lifetime: pro && !data?.pro_until, sub: subRes?.data || null };
     try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch {}
     applyPlan(p);
+    return p;
+  }
+  async function callFn(name) {
+    const { data } = await sb.auth.getSession();
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, { method: 'POST', headers: { Authorization: `Bearer ${data?.session?.access_token || ''}`, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, body: '{}' });
+    let body = {}; try { body = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, ...body };
   }
   function showUpgrade(why) {
+    if (isPro()) return showManage();
     const head = {
       example: ['These are example figures', `The example has 5 debts, so it can’t be edited on the free plan. Start your own plan with up to ${FREE_DEBTS} debts, or go Pro for as many as you need.`],
       add: [`The free plan covers ${FREE_DEBTS} debts`, `You’ve added ${FREE_DEBTS} debts. To add more, upgrade to Pro.`],
@@ -356,23 +369,69 @@
       menu: ['Upgrade to Pro', 'Plan every debt you have, not just three.']
     }[why] || ['Upgrade to Pro', ''];
     dialog(`<h2>${head[0]}</h2><p>${head[1]}</p>
-      <div class="pro-box"><b class="t">Utang Tracker Pro</b>
-        <ul><li>Unlimited debts, cards and loans</li><li>Every feature, on web, Windows and Android</li><li>Monthly subscription, cancel any time</li></ul>
-        <p class="small">Paid plans are opening soon. Join the list and we’ll email you at <b>${esc(user?.email || '')}</b> when Pro is ready.</p>
+      <div class="pro-box"><b class="t">Utang Tracker Pro · ${PRICE} a month</b>
+        <ul><li>Unlimited debts, cards and loans</li><li>Every feature, on web, Windows and Android</li><li>Renews monthly. Cancel any time and keep Pro until the month you paid for ends.</li></ul>
+        <p class="small">You’ll pay on Xendit’s secure payment page${NATIVE_APP ? ', which opens in your browser. Come back here when you’re done' : ''}.</p>
       </div>
       <div class="msg-slot"></div>
-      <div class="actions">${why === 'example' ? '<button class="btn" id="upOwn">Start my own plan</button>' : '<button class="btn" id="upLater">Not now</button>'}<button class="btn primary" id="upList">Tell me when Pro opens</button></div>`, dlg => {
+      <div class="actions">${why === 'example' ? '<button class="btn" id="upOwn">Start my own plan</button>' : '<button class="btn" id="upLater">Not now</button>'}<button class="btn primary" id="upPay">Upgrade for ${PRICE}/month</button></div>`, dlg => {
       dlg.querySelector('#upOwn')?.addEventListener('click', () => { App.clearExample(); closeDialog(); });
       dlg.querySelector('#upLater')?.addEventListener('click', closeDialog);
-      const b = dlg.querySelector('#upList');
+      const b = dlg.querySelector('#upPay');
       b.onclick = async () => {
-        busy(b, true, 'Adding you…');
-        const { error } = await sb.from('pro_waitlist').insert({ user_id: user.id });
-        if (error && error.code !== '23505') { busy(b, false, 'Tell me when Pro opens'); return msg(dlg, 'Couldn’t add you right now. Check your connection and try again.'); }
-        busy(b, true, 'You’re on the list');
-        msg(dlg, `You’re on the list. We’ll email ${esc(user.email)} when Pro opens.`, 'ok');
+        busy(b, true, 'Opening payment…');
+        const res = await callFn('pro-checkout').catch(() => ({ ok: false, status: 0 }));
+        if (res.ok && res.url) {
+          try { localStorage.setItem('utang-pay-pending', String(Date.now())); } catch {}
+          location.href = res.url;   // in the apps this opens the browser
+          if (NATIVE_APP) { busy(b, false, `Upgrade for ${PRICE}/month`); msg(dlg, 'Finish paying in your browser. Pro turns on here a moment after the payment goes through.', 'ok'); }
+          return;
+        }
+        busy(b, false, `Upgrade for ${PRICE}/month`);
+        if (res.error === 'already_subscribed') { closeDialog(); loadPlan(); return; }
+        if (res.error === 'payments_not_configured') return msg(dlg, 'Payments aren’t switched on yet. Please try again later.');
+        msg(dlg, navigator.onLine ? 'Couldn’t open the payment page. Please try again in a moment.' : 'You’re offline. Connect to the internet to upgrade.');
       };
     });
+  }
+  function showManage() {
+    const p = plan || {};
+    const st = p.sub?.status;
+    const line = p.lifetime ? 'Your account has Pro for good. There’s nothing to pay.'
+      : st === 'active' ? `Pro renews automatically for ${PRICE} a month. Your current month runs until <b>${esc(fmtDate(p.until))}</b>.`
+      : st === 'past_due' ? `Your last renewal didn’t go through. Xendit will try again. Pro stays on until <b>${esc(fmtDate(p.until))}</b>; update your payment method on Xendit’s emails if needed.`
+      : st === 'cancelled' ? `Renewal is off. You keep Pro until <b>${esc(fmtDate(p.until))}</b>, then your account goes back to the free plan (up to ${FREE_DEBTS} debts). You can subscribe again from the account menu after that.`
+      : `You have Pro until <b>${esc(fmtDate(p.until))}</b>.`;
+    const canCancel = !p.lifetime && (st === 'active' || st === 'past_due');
+    dialog(`<h2>Your Pro plan</h2><p>${line}</p><div class="msg-slot"></div>
+      <div class="actions"><button class="btn" id="mgClose">Close</button>${canCancel ? '<button class="btn danger" id="mgCancel">Cancel renewal</button>' : ''}</div>`, dlg => {
+      dlg.querySelector('#mgClose').onclick = closeDialog;
+      const c = dlg.querySelector('#mgCancel');
+      if (c) c.onclick = () => dialog(`<h2>Cancel renewal?</h2><p>You won’t be charged again. Pro stays on until <b>${esc(fmtDate(p.until))}</b>, then your account goes back to the free plan. Your figures are kept; debts beyond ${FREE_DEBTS} stay visible but won’t sync.</p><div class="msg-slot"></div>
+        <div class="actions"><button class="btn" id="cnNo">Keep Pro</button><button class="btn danger" id="cnYes">Cancel renewal</button></div>`, d2 => {
+          d2.querySelector('#cnNo').onclick = showManage;
+          const y = d2.querySelector('#cnYes');
+          y.onclick = async () => {
+            busy(y, true, 'Cancelling…');
+            const res = await callFn('pro-cancel').catch(() => ({ ok: false }));
+            if (!res.ok) { busy(y, false, 'Cancel renewal'); return msg(d2, 'Couldn’t cancel right now. Check your connection and try again.'); }
+            await loadPlan(); showManage();
+          };
+        });
+    });
+  }
+  // Back from Xendit's payment page.
+  async function afterPayment(result) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    if (result === 'cancelled') return dialog(`<h2>Payment cancelled</h2><p>Nothing was charged. You’re still on the free plan.</p><div class="actions"><button class="btn primary" id="okBtn">OK</button></div>`, d => { d.querySelector('#okBtn').onclick = closeDialog; });
+    dialog(`<h2>Turning on Pro…</h2><p>Thanks! We’re confirming your payment with Xendit. This usually takes a few seconds.</p><div class="msg-slot"></div><div class="actions"><button class="btn" id="okBtn">Close</button></div>`, d => { d.querySelector('#okBtn').onclick = closeDialog; });
+    for (let i = 0; i < 30; i++) {
+      const p = await loadPlan();
+      if (p?.pro) { try { localStorage.removeItem('utang-pay-pending'); } catch {} return dialog(`<h2>You’re on Pro</h2><p>Add as many debts as you need. Your first month runs until ${esc(fmtDate(p.until))}; after that Pro renews for ${PRICE} a month. Cancel any time from the account menu.</p><div class="actions"><button class="btn primary" id="okBtn">Start planning</button></div>`, d => { d.querySelector('#okBtn').onclick = closeDialog; }); }
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    const slot = document.querySelector('#acctOv .msg-slot');
+    if (slot) slot.innerHTML = '<div class="msg ok">Your payment is still being confirmed. Pro will switch on by itself; you can keep using the app.</div>';
   }
   App.onLimit = why => showUpgrade(why);
 
@@ -431,6 +490,7 @@
       closeMenu();
       if (a === 'sync') { flush().then(pull); }
       if (a === 'up') showUpgrade('menu');
+      if (a === 'manage') showManage();
       if (a === 'pw') showNewPassword('Change your password');
       if (a === 'out') showSignOut();
       if (a === 'del') showDelete();
@@ -439,7 +499,11 @@
     if (!t.closest('.acct')) closeMenu();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); if (!gated) closeDialog(); } });
-  window.addEventListener('focus', () => { if (user && !pending && Date.now() - lastPull > 30000) pull(); });
+  window.addEventListener('focus', () => {
+    if (user && !pending && Date.now() - lastPull > 30000) pull();
+    let t = 0; try { t = +localStorage.getItem('utang-pay-pending') || 0; } catch {}
+    if (user && t && Date.now() - t < 3600e3 && !isPro()) loadPlan();
+  });
   window.addEventListener('online', () => { if (pending) push(pending); });
   window.addEventListener('beforeunload', () => { if (pending) push(pending); });
 
@@ -448,7 +512,13 @@
     const u = session?.user || null;
     if ((u?.id || null) !== (user?.id || null)) {
       user = u; renderAcct();
-      if (user) { if (gated) { gated = false; removeDialog(); } loadPlan(); setTimeout(pull, 0); }
+      if (user) {
+        if (gated) { gated = false; removeDialog(); }
+        const q = new URLSearchParams(location.search);
+        if (q.get('pro')) afterPayment(q.get('pro'));
+        else loadPlan().then(p => { if (q.has('upgrade')) { history.replaceState(null, '', location.pathname + location.hash); if (!p?.pro) showUpgrade('menu'); } });
+        setTimeout(pull, 0);
+      }
       else { plan = null; App.setLimit(FREE_DEBTS); App.status(App.get().isExample ? '' : 'ok', App.get().isExample ? 'Example figures' : 'Saved in this browser · sign in to sync'); }
     }
     if (!u && event !== 'PASSWORD_RECOVERY') lockUntilSignedIn();
@@ -463,7 +533,8 @@
   renderAcct();
   // Arriving from the landing page's "Sign in" link: open the sign-in box once we know nobody is signed in.
   if (new URLSearchParams(location.search).has('signin') || wantSignUp) {
-    history.replaceState(null, '', location.pathname + location.hash);
+    const q = new URLSearchParams(location.search); q.delete('signin'); q.delete('signup');   // keep ?upgrade and ?tab
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
     sb.auth.getSession().then(({ data }) => { if (!data?.session) lockUntilSignedIn(); });
   }
   if (location.hash.includes('error_description')) {
