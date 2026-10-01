@@ -1,5 +1,5 @@
 /* Offline support: the app itself is cached; figures sync with the account when online. */
-const CACHE = 'utang-v2';
+const CACHE = 'utang-v3';
 const SHELL = ['./', 'index.html', 'cloud.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'fonts/bricolage-grotesque-latin-600-normal.woff2', 'fonts/bricolage-grotesque-latin-800-normal.woff2',
   'fonts/figtree-latin-400-normal.woff2', 'fonts/figtree-latin-600-normal.woff2', 'fonts/figtree-latin-700-normal.woff2',

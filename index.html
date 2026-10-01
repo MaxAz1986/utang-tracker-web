@@ -389,8 +389,8 @@ tr.win td{background:color-mix(in srgb,var(--go) 7%,var(--panel))}
   </div>
 
   <nav class="tabbar" role="tablist" id="tabs">
-    <button role="tab" data-tab="situation" aria-selected="true"><svg class="i"><use href="#i-pulse"/></svg><span class="lbl-long">My situation</span><span class="lbl-short">Today</span></button>
-    <button role="tab" data-tab="plan" aria-selected="false"><svg class="i"><use href="#i-plan"/></svg><span class="lbl-long">Payoff plan</span><span class="lbl-short">Plan</span></button>
+    <button role="tab" data-tab="plan" aria-selected="true"><svg class="i"><use href="#i-plan"/></svg><span class="lbl-long">Payoff plan</span><span class="lbl-short">Plan</span></button>
+    <button role="tab" data-tab="situation" aria-selected="false"><svg class="i"><use href="#i-pulse"/></svg><span class="lbl-long">My situation</span><span class="lbl-short">Today</span></button>
     <button role="tab" data-tab="debts" aria-selected="false"><svg class="i"><use href="#i-debts"/></svg><span class="lbl-long">Debts</span><span class="lbl-short">Debts</span></button>
     <button role="tab" data-tab="budget" aria-selected="false"><svg class="i"><use href="#i-wallet"/></svg><span class="lbl-long">Income &amp; expenses</span><span class="lbl-short">Budget</span></button>
     <button role="tab" data-tab="lines" aria-selected="false"><svg class="i"><use href="#i-gauge"/></svg><span class="lbl-long">Credit lines</span><span class="lbl-short">Credit</span></button>
@@ -398,11 +398,11 @@ tr.win td{background:color-mix(in srgb,var(--go) 7%,var(--panel))}
   </nav>
 
   <!-- PLAN -->
-  <section class="panel" data-panel="situation">
+  <section class="panel" data-panel="situation" hidden>
     <div class="card c-situation" id="situation"></div>
   </section>
 
-  <section class="panel" data-panel="plan" hidden>
+  <section class="panel" data-panel="plan">
     <div class="hero" id="hero"></div>
     <div class="stats" id="stats"></div>
 
