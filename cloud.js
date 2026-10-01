@@ -12,6 +12,10 @@
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   let user = null, saveT = null, pending = null, lastPull = 0, pulling = false;
+  let gated = false, plan = null;            // gated: nobody signed in, so the planner is locked behind sign-in
+  const NATIVE_APP = !!window.UtangNative;   // inside the Windows or Android app
+  const FREE_DEBTS = 3;
+  const wantSignUp = new URLSearchParams(location.search).has('signup');   // from the landing page's sign-up buttons
 
   /* ---------- small helpers ---------- */
   const $ = s => document.querySelector(s);
@@ -58,6 +62,16 @@
   .ga-steps{margin:0;padding-left:20px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
   .ga-steps b{color:var(--ink)}
   .dlg{width:min(520px,100%)}
+  .ov.gate{background:rgba(29,27,52,.86);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .gate-brand{display:flex;align-items:center;gap:12px}
+  .gate-brand img{width:44px;height:44px;border-radius:12px}
+  .gate-brand b{font:800 20px var(--f-display);display:block}
+  .gate-brand span{font-size:13px;color:var(--muted)}
+  .plan-line{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--panel-2);color:var(--ink)}
+  .plan-line.pro{background:var(--accent);color:var(--accent-ink)}
+  .pro-box{border:1.5px solid var(--accent);background:var(--accent-soft);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .pro-box ul{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:3px}
+  .pro-box b.t{font:800 18px var(--f-display)}
   .gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border:1.5px solid var(--line);background:#fff;color:#1f1f1f;border-radius:12px;padding:11px 14px;font:700 15px var(--f-body);cursor:pointer}
   .gbtn:hover{border-color:var(--accent)} .gbtn:disabled{opacity:.6;cursor:default} .gbtn svg{width:18px;height:18px;flex:none}
   .orline{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)} .orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -76,7 +90,8 @@
     closeMenu();
     const m = document.createElement('div');
     m.className = 'acct-menu'; m.id = 'acctMenu'; m.setAttribute('role', 'menu');
-    m.innerHTML = `<div class="who">Signed in as<br><b>${esc(user.email)}</b></div>
+    m.innerHTML = `<div class="who">Signed in as<br><b>${esc(user.email)}</b><br><span class="plan-line ${isPro() ? 'pro' : ''}">${isPro() ? 'Pro plan' : `Free plan · up to ${FREE_DEBTS} debts`}</span></div>
+      ${isPro() ? '' : '<button data-a="up" role="menuitem">Upgrade to Pro</button>'}
       <button data-a="sync" role="menuitem">Sync now</button>
       ${hasPw() ? '<button data-a="pw" role="menuitem">Change password</button>' : ''}
       <button data-a="out" role="menuitem">Sign out</button>
@@ -89,16 +104,18 @@
 
   /* ---------- dialogs ---------- */
   function dialog(html, onMount) {
-    closeDialog();
+    removeDialog();
     const ov = document.createElement('div');
-    ov.className = 'ov'; ov.id = 'acctOv';
+    ov.className = 'ov' + (gated ? ' gate' : ''); ov.id = 'acctOv';
     ov.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">${html}</div>`;
-    ov.addEventListener('mousedown', e => { if (e.target === ov) closeDialog(); });
+    ov.addEventListener('mousedown', e => { if (e.target === ov && !gated) closeDialog(); });
     document.body.appendChild(ov);
     onMount?.(ov.querySelector('.dlg'));
     ov.querySelector('input, button.btn')?.focus();
   }
-  function closeDialog() { $('#acctOv')?.remove(); }
+  function removeDialog() { $('#acctOv')?.remove(); }
+  // While nobody is signed in, closing any dialog goes back to the sign-in screen instead of the planner.
+  function closeDialog() { removeDialog(); if (gated && !user) showSignIn(); }
   const msg = (dlg, text, kind = 'err') => { const el = dlg.querySelector('.msg-slot'); if (el) el.innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
   const busy = (btn, on, label) => { if (!btn) return; btn.disabled = on; if (label) btn.textContent = label; };
   const privacy = `<p class="note">Your figures are stored in a private database. Only you can read them when signed in. You can delete them any time from the account menu.</p>`;
@@ -111,6 +128,7 @@
   const googleBlock = `<div class="g-slot" hidden><button type="button" class="gbtn">${G_LOGO}<span>Continue with Google</span></button><div class="orline" style="margin-top:14px">or use your email</div></div>`;
   function mountGoogle(dlg) {
     const slot = dlg.querySelector('.g-slot'); if (!slot) return;
+    if (NATIVE_APP) { slot.insertAdjacentHTML('afterend', '<p class="note">Signed up with Google on the website? Use <b>Forgot password</b> to set a password for this app.</p>'); return; }   // Google blocks sign-in inside apps
     const show = () => { if (googleOn) slot.hidden = false; };
     googleOn === null ? googleReady.then(show) : show();
     const b = slot.querySelector('.gbtn');
@@ -121,8 +139,9 @@
     };
   }
 
+  const brand = () => gated ? `<div class="gate-brand"><img src="${new URL('icons/icon-192.png', BASE).href}" alt=""><div><b>Utang Tracker</b><span>Free for up to ${FREE_DEBTS} debts</span></div></div>` : '';
   function showSignIn(prefill = '') {
-    dialog(`<h2>Sign in</h2><p class="small muted">Keep your figures in sync on your phone, PC and any browser.</p>
+    dialog(`${brand()}<h2>Sign in</h2><p class="small muted">${gated ? 'Sign in or create a free account to start planning. Your figures sync on your phone, PC and any browser.' : 'Keep your figures in sync on your phone, PC and any browser.'}</p>
       ${googleBlock}
       <form id="fSignIn" novalidate>
         <div style="display:flex;flex-direction:column;gap:10px">
@@ -154,7 +173,7 @@
     });
   }
   function showSignUp(prefill = '') {
-    dialog(`<h2>Create an account</h2><p class="small muted">Free. Your figures sync across your devices.</p>
+    dialog(`${brand()}<h2>Create an account</h2><p class="small muted">Free for up to ${FREE_DEBTS} debts. Your figures sync across your devices.</p>
       ${googleBlock}
       <form id="fSignUp" novalidate>
         <div style="display:flex;flex-direction:column;gap:10px">
@@ -293,7 +312,7 @@
         [isAndroid, card('android', 'Android app', 'Android 7 or newer · under 1 MB', `<a class="btn primary" href="${DL.android}" download="UtangTracker.apk">Download for Android</a>
           <ol class="ga-steps"><li>Open the downloaded <b>UtangTracker.apk</b>.</li><li>Allow installs from your browser or Files app when asked.</li><li>If Play Protect warns, choose <b>Install anyway</b>. The app isn’t from the Play Store.</li></ol>`, isAndroid)]
       ].sort((x, y) => (y[0] ? 1 : 0) - (x[0] ? 1 : 0)).map(x => x[1]).join('')}</div>
-      <p class="note">The Windows and Android apps work fully offline and keep figures on that device only; they don’t sync with your account. Use <b>Backup</b> to move figures between them, or install this website to sync everywhere.</p>
+      <p class="note">The Windows and Android apps use the same account and keep your figures in sync. Sign in once with your email and password; after that they also work offline.</p>
       <div class="actions"><button class="btn" id="gaClose">Close</button></div>`, dlg => {
       dlg.querySelector('#gaClose').onclick = closeDialog;
       const ib = dlg.querySelector('#gaInstall');
@@ -301,7 +320,7 @@
     });
   }
   const hb = document.querySelector('#backupBtn');
-  if (hb) {
+  if (hb && !NATIVE_APP) {
     const g = document.createElement('button');
     g.className = 'iconbtn'; g.id = 'getAppBtn';
     g.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg><span>Get app</span>';
@@ -309,12 +328,61 @@
     hb.parentNode.insertBefore(g, hb);
   }
 
+  /* ---------- plan: free (3 debts) or Pro ---------- */
+  const PLAN_KEY = 'utang-plan';
+  const isPro = () => !!plan?.pro;
+  function applyPlan(p) { plan = p; App.setLimit(p.pro ? Infinity : FREE_DEBTS); renderAcct(); }
+  async function loadPlan() {
+    if (!user) return;
+    let cached = null; try { cached = JSON.parse(localStorage.getItem(PLAN_KEY)); } catch {}
+    if (cached?.uid === user.id) applyPlan(cached); else applyPlan({ uid: user.id, pro: false });
+    const { data, error } = await sb.from('plans').select('tier, pro_until').eq('user_id', user.id).maybeSingle();
+    if (error) {
+      // Plans not set up on the server yet: don't limit anyone in the page (the database rule is what really counts).
+      if (/PGRST205|42P01|does not exist|schema cache/i.test((error.code || '') + ' ' + (error.message || ''))) applyPlan({ uid: user.id, pro: true, unset: true });
+      return;   // offline: keep the cached plan
+    }
+    const pro = data?.tier === 'pro' && (!data.pro_until || new Date(data.pro_until) > new Date());
+    const p = { uid: user.id, pro };
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch {}
+    applyPlan(p);
+  }
+  function showUpgrade(why) {
+    const head = {
+      example: ['These are example figures', `The example has 5 debts, so it can’t be edited on the free plan. Start your own plan with up to ${FREE_DEBTS} debts, or go Pro for as many as you need.`],
+      add: [`The free plan covers ${FREE_DEBTS} debts`, `You’ve added ${FREE_DEBTS} debts. To add more, upgrade to Pro.`],
+      restore: [`The free plan covers ${FREE_DEBTS} debts`, `That backup has more than ${FREE_DEBTS} debts. Upgrade to Pro to restore it, or restore a backup with fewer debts.`],
+      sync: [`The free plan covers ${FREE_DEBTS} debts`, `Your figures have more than ${FREE_DEBTS} debts, so they’re saved on this device but not synced. Remove a debt or upgrade to Pro to sync again.`],
+      menu: ['Upgrade to Pro', 'Plan every debt you have, not just three.']
+    }[why] || ['Upgrade to Pro', ''];
+    dialog(`<h2>${head[0]}</h2><p>${head[1]}</p>
+      <div class="pro-box"><b class="t">Utang Tracker Pro</b>
+        <ul><li>Unlimited debts, cards and loans</li><li>Every feature, on web, Windows and Android</li><li>Monthly subscription, cancel any time</li></ul>
+        <p class="small">Paid plans are opening soon. Join the list and we’ll email you at <b>${esc(user?.email || '')}</b> when Pro is ready.</p>
+      </div>
+      <div class="msg-slot"></div>
+      <div class="actions">${why === 'example' ? '<button class="btn" id="upOwn">Start my own plan</button>' : '<button class="btn" id="upLater">Not now</button>'}<button class="btn primary" id="upList">Tell me when Pro opens</button></div>`, dlg => {
+      dlg.querySelector('#upOwn')?.addEventListener('click', () => { App.clearExample(); closeDialog(); });
+      dlg.querySelector('#upLater')?.addEventListener('click', closeDialog);
+      const b = dlg.querySelector('#upList');
+      b.onclick = async () => {
+        busy(b, true, 'Adding you…');
+        const { error } = await sb.from('pro_waitlist').insert({ user_id: user.id });
+        if (error && error.code !== '23505') { busy(b, false, 'Tell me when Pro opens'); return msg(dlg, 'Couldn’t add you right now. Check your connection and try again.'); }
+        busy(b, true, 'You’re on the list');
+        msg(dlg, `You’re on the list. We’ll email ${esc(user.email)} when Pro opens.`, 'ok');
+      };
+    });
+  }
+  App.onLimit = why => showUpgrade(why);
+
   /* ---------- sync ---------- */
   async function push(json) {
     if (!user) return;
     pending = json;
     App.status('', 'Syncing…');
     const { error } = await sb.from('ledgers').upsert({ user_id: user.id, data: JSON.parse(json) }, { onConflict: 'user_id' });
+    if (error && /FREE_LIMIT/.test(error.message || '')) { if (pending === json) pending = null; App.status('local', `Not synced · the free plan keeps up to ${FREE_DEBTS} debts`); showUpgrade('sync'); return false; }
     if (error) { App.status('local', navigator.onLine ? 'Saved on this device · sync failed, will retry' : 'Offline · saved on this device'); return false; }
     if (pending === json) pending = null;
     synced(json); lastPull = Date.now();
@@ -362,6 +430,7 @@
     if (a) {
       closeMenu();
       if (a === 'sync') { flush().then(pull); }
+      if (a === 'up') showUpgrade('menu');
       if (a === 'pw') showNewPassword('Change your password');
       if (a === 'out') showSignOut();
       if (a === 'del') showDelete();
@@ -369,7 +438,7 @@
     }
     if (!t.closest('.acct')) closeMenu();
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); closeDialog(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); if (!gated) closeDialog(); } });
   window.addEventListener('focus', () => { if (user && !pending && Date.now() - lastPull > 30000) pull(); });
   window.addEventListener('online', () => { if (pending) push(pending); });
   window.addEventListener('beforeunload', () => { if (pending) push(pending); });
@@ -379,15 +448,23 @@
     const u = session?.user || null;
     if ((u?.id || null) !== (user?.id || null)) {
       user = u; renderAcct();
-      if (user) setTimeout(pull, 0);
-      else App.status(App.get().isExample ? '' : 'ok', App.get().isExample ? 'Example figures' : 'Saved in this browser · sign in to sync');
+      if (user) { if (gated) { gated = false; removeDialog(); } loadPlan(); setTimeout(pull, 0); }
+      else { plan = null; App.setLimit(FREE_DEBTS); App.status(App.get().isExample ? '' : 'ok', App.get().isExample ? 'Example figures' : 'Saved in this browser · sign in to sync'); }
     }
+    if (!u && event !== 'PASSWORD_RECOVERY') lockUntilSignedIn();
   });
+  // Nobody signed in: the planner stays behind the sign-in screen.
+  function lockUntilSignedIn() {
+    if (user || gated) return;
+    gated = true;
+    if (!$('#acctOv')) wantSignUp ? showSignUp() : showSignIn();
+    else $('#acctOv').classList.add('gate');
+  }
   renderAcct();
   // Arriving from the landing page's "Sign in" link: open the sign-in box once we know nobody is signed in.
-  if (new URLSearchParams(location.search).has('signin')) {
+  if (new URLSearchParams(location.search).has('signin') || wantSignUp) {
     history.replaceState(null, '', location.pathname + location.hash);
-    sb.auth.getSession().then(({ data }) => { if (!data?.session) showSignIn(); });
+    sb.auth.getSession().then(({ data }) => { if (!data?.session) lockUntilSignedIn(); });
   }
   if (location.hash.includes('error_description')) {
     const p = new URLSearchParams(location.hash.slice(1));
