@@ -53,6 +53,8 @@ p{margin:0}
 .btn.sun{background:var(--sun)}
 .btn svg{width:20px;height:20px;flex:none}
 
+.btn.mini{margin-top:26px;padding:10px 18px;font-size:15.5px;background:var(--b);color:#fff;box-shadow:3px 3px 0 var(--ink)}
+.btn.mini[style*="--sun"]{color:var(--ink)}
 /* nav */
 .nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:var(--line)}
 .nav .wrap{display:flex;align-items:center;gap:24px;height:68px}
@@ -62,12 +64,38 @@ p{margin:0}
 .nav nav a{text-decoration:none}
 .nav nav a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 .nav .btn{padding:9px 16px;font-size:15px;box-shadow:3px 3px 0 var(--ink)}
+.signin{font-weight:700;font-size:15.5px;text-decoration:none;padding:8px 4px}
+.signin:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+
+/* the real app */
+.peek{padding:88px 0 96px;border-bottom:var(--line);overflow:hidden}
+.peek .sec-head{margin-bottom:46px}
+.stage{position:relative;padding-right:min(190px,15%)}
+.browser{border:var(--line);border-radius:20px;background:#fff;box-shadow:10px 10px 0 var(--violet);overflow:hidden}
+.browser .bar{display:flex;align-items:center;gap:8px;padding:11px 16px;border-bottom:var(--line);background:var(--lilac)}
+.browser .bar i{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink)}
+.browser .bar span{margin-left:12px;flex:1;max-width:420px;background:#fff;border:2px solid var(--ink);border-radius:999px;padding:3px 14px;font:500 13px var(--f-m);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.browser img{width:100%;height:auto}
+.phone{position:absolute;right:0;bottom:-40px;width:min(250px,26%);border:var(--line);border-radius:34px;background:var(--ink);padding:9px;box-shadow:8px 8px 0 var(--pink);transform:rotate(3deg)}
+.phone img{border-radius:26px;width:100%;height:auto}
+.callout{position:absolute;font:800 15.5px/1.25 var(--f-d);border:var(--line);border-radius:14px;padding:9px 13px;box-shadow:3px 3px 0 var(--ink);max-width:210px}
+.callout.c1{left:26%;top:-24px;background:var(--sun);transform:rotate(-3deg)}
+.callout.c2{left:38%;bottom:-26px;background:var(--teal);color:#fff;transform:rotate(2deg)}
+.callout.c3{right:min(150px,13%);top:-22px;background:var(--pink);color:#fff;transform:rotate(3deg)}
+
+/* for you if */
+.foryou{background:var(--mint);border-bottom:var(--line)}
+.fy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+.fy{display:flex;gap:14px;align-items:flex-start;background:#fff;border:var(--line);border-radius:18px;padding:18px;font-weight:600;font-size:16.5px;line-height:1.45}
+.fy:nth-child(3n+2){transform:rotate(.6deg)} .fy:nth-child(3n){transform:rotate(-.6deg)}
+.fy .box{width:30px;height:30px;border-radius:9px;border:var(--line);display:grid;place-items:center;flex:none;background:var(--c)}
+.fy .box svg{width:16px;height:16px}
 
 /* hero */
 .hero{background:var(--lilac);border-bottom:var(--line);position:relative;overflow:hidden}
 .hero::before{content:"";position:absolute;inset:0;background-image:radial-gradient(var(--lilac-2) 2px,transparent 2.5px);background-size:26px 26px;opacity:.9}
 .hero .wrap{position:relative;display:grid;grid-template-columns:1.02fr 1fr;gap:40px;align-items:center;padding:64px 0 72px}
-.hero h1{font-size:clamp(42px,5.6vw,74px)}
+.hero h1{font-size:clamp(40px,5.2vw,70px)}
 .hero .lede{font-size:20px;color:var(--ink-2);margin-top:22px;max-width:34em}
 .hero .ctas{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px}
 .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
@@ -230,6 +258,10 @@ footer .sp{margin-left:auto}
   .feat.flip .art{order:0}
   .feat{gap:34px;padding:40px 0}
   .step-row,.priv{grid-template-columns:1fr}
+  .fy-grid{grid-template-columns:1fr 1fr}
+  .stage{padding-right:0}
+  .phone{display:none}
+  .callout.c3{right:-6px}
   .nav nav{display:none}
   .nav .btn{margin-left:auto}
 }
@@ -253,6 +285,12 @@ footer .sp{margin-left:auto}
   .stat{min-width:0;flex:1 1 140px}
   .stat b{font-size:32px}
   .tag{display:none}
+  .fy-grid{grid-template-columns:1fr}
+  .callout{display:none}
+  .browser{display:none}
+  .phone{display:block;position:static;width:min(290px,82%);margin:0 auto;transform:rotate(2deg)}
+  .signin{display:none}
+  .peek{padding:64px 0}
   footer .sp{margin-left:0}
 }
 </style>
@@ -276,6 +314,7 @@ footer .sp{margin-left:auto}
       <a href="#apps">Phone and PC</a>
       <a href="#privacy">Privacy</a>
     </nav>
+    <a class="signin" href="app/?signin=1">Sign in</a>
     <a class="btn go" href="app/">Open the app</a>
   </div>
 </header>
@@ -286,8 +325,8 @@ footer .sp{margin-left:auto}
 <section class="hero">
   <div class="wrap">
     <div>
-      <h1>Pay off what you owe, in the order that costs you least.</h1>
-      <p class="lede">List your credit cards, loans and installments. Utang Tracker works out which one to pay first, how much interest you’re really paying, and the month you’ll be debt-free. Free, in pesos, built for how Filipinos borrow.</p>
+      <h1>Know what to pay. Know what it costs. Know when you’re free.</h1>
+      <p class="lede">Utang Tracker turns your credit cards, loans and installments into a payoff plan: which debt to pay first, what each one really costs you, and the month you can expect to be debt-free. Free, in pesos, built for how Filipinos borrow.</p>
       <div class="ctas">
         <a class="btn go" href="app/">Start my free plan</a>
         <a class="btn sun" href="#apps">Get it for phone or PC</a>
@@ -391,6 +430,43 @@ footer .sp{margin-left:auto}
   </div>
 </section>
 
+<!-- THE REAL APP -->
+<section class="peek" aria-labelledby="peek-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 id="peek-h">This is the actual app, not a mock-up.</h2>
+      <p>Screens from Utang Tracker running its built-in sample: five debts, ₱446,379 owed, one clear plan.</p>
+    </div>
+    <div class="stage">
+      <div class="browser">
+        <div class="bar"><i style="background:#FF6B6B"></i><i style="background:#FFC93C"></i><i style="background:#14B8A6"></i><span>maxaz1986.github.io/utang-tracker-web/app</span></div>
+        <img src="img-app-plan.webp" width="1920" height="1170" alt="Utang Tracker's payoff plan screen: debt-free by December 2027, paying ₱33,000 a month, ₱68,684 interest left, ₱82,662 saved versus minimums.">
+      </div>
+      <div class="phone"><img src="img-app-phone.webp" width="780" height="1688" alt="The app on a phone: your debt situation today, monthly dues split into principal and interest." loading="lazy"></div>
+      <span class="callout c1">Your debt-free month, worked out</span>
+      <span class="callout c2">Exactly what goes to principal and to interest</span>
+      <span class="callout c3">Same plan on your phone</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOR YOU IF -->
+<section class="foryou sec" aria-labelledby="fy-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 id="fy-h">Utang Tracker is for you if…</h2>
+    </div>
+    <div class="fy-grid">
+      <div class="fy"><span class="box" style="--c:var(--coral)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>You have several loans and cards, and you’re not sure which one to pay first.</span></div>
+      <div class="fy"><span class="box" style="--c:var(--sun)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#1D1B34" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Your salary comes in and the dues take a big bite, but you can’t say exactly how big.</span></div>
+      <div class="fy"><span class="box" style="--c:var(--teal)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>You want to know how much of each payment is just interest.</span></div>
+      <div class="fy"><span class="box" style="--c:var(--violet)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>You’re paying installments, a salary loan or Pag-IBIG on top of your credit cards.</span></div>
+      <div class="fy"><span class="box" style="--c:var(--pink)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>You want a realistic month you can aim for, not a vague “someday”.</span></div>
+      <div class="fy"><span class="box" style="--c:var(--sky)"><svg viewBox="0 0 12 12"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>You’d rather not hand your bank login to an app to get there.</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- TWO ENDINGS -->
 <section class="endings sec" aria-labelledby="endings-h">
   <div class="wrap">
@@ -436,6 +512,7 @@ footer .sp{margin-left:auto}
           <li style="--c:var(--sun)">How much income you need to keep up</li>
           <li style="--c:var(--pink)">When each due drops off your budget</li>
         </ul>
+        <a class="btn mini" style="--b:var(--teal)" href="app/?tab=situation">See my situation</a>
       </div>
       <div class="art">
         <div class="board">
@@ -475,6 +552,7 @@ footer .sp{margin-left:auto}
           <li style="--c:var(--sky)">Snowball: quickest first win</li>
           <li style="--c:var(--sun)">Cash-flow: lowers your dues soonest</li>
         </ul>
+        <a class="btn mini" style="--b:var(--violet)" href="app/?tab=plan">Compare my strategies</a>
       </div>
       <div class="art">
         <div class="board tint-lilac">
@@ -509,6 +587,7 @@ footer .sp{margin-left:auto}
           <li style="--c:var(--teal)">Balance owed, filled in for you</li>
           <li style="--c:var(--sun)">Interest per month and over the whole loan</li>
         </ul>
+        <a class="btn mini" style="--b:var(--coral)" href="app/?tab=debts">Check my loan’s real cost</a>
       </div>
       <div class="art">
         <div class="board tint-blush" style="padding:34px 26px">
@@ -534,6 +613,7 @@ footer .sp{margin-left:auto}
           <li style="--c:var(--sky)">Pay in full plus interest, borrow the principal again</li>
           <li style="--c:var(--pink)">See the yearly cost of keeping the cycle going</li>
         </ul>
+        <a class="btn mini" style="--b:var(--sky)" href="app/?tab=debts">Add my revolving credit</a>
       </div>
       <div class="art">
         <div class="board tint-mint">
@@ -572,6 +652,7 @@ footer .sp{margin-left:auto}
           <li style="--c:var(--sun)">What to pay, debt by debt, every month</li>
           <li style="--c:var(--violet)">Unused credit lines and balance-transfer offers, too</li>
         </ul>
+        <a class="btn mini" style="--b:var(--sun)" href="app/?tab=schedule">See my month-by-month plan</a>
       </div>
       <div class="art">
         <div class="board tint-sun">

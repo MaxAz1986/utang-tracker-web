@@ -384,6 +384,11 @@
     }
   });
   renderAcct();
+  // Arriving from the landing page's "Sign in" link: open the sign-in box once we know nobody is signed in.
+  if (new URLSearchParams(location.search).has('signin')) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    sb.auth.getSession().then(({ data }) => { if (!data?.session) showSignIn(); });
+  }
   if (location.hash.includes('error_description')) {
     const p = new URLSearchParams(location.hash.slice(1));
     setTimeout(() => dialog(`<h2>That link didn’t work</h2><p>${esc(p.get('error_description') || 'The link has expired or was already used.')}</p><div class="actions"><button class="btn primary" id="okBtn">OK</button></div>`, d => { d.querySelector('#okBtn').onclick = closeDialog; }), 300);
