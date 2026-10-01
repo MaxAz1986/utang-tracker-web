@@ -280,6 +280,7 @@ svg.chart text{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
 .meter{height:9px;border-radius:99px;background:var(--panel-2);overflow:hidden}
 .meter span{display:block;height:100%;border-radius:99px}
 .adddebt{border:2px dashed var(--line);border-radius:var(--r);background:none;color:var(--muted);font:700 15px var(--f-body);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:180px}
+.adddebt .lim{font-size:12.5px;font-weight:600}
 .adddebt:hover{border-color:var(--accent);color:var(--accent)}
 .adddebt .plus{width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
 .checks{display:flex;flex-direction:column;gap:8px;font-size:14px}
@@ -542,6 +543,9 @@ const EXAMPLE = {
 const BLANK = { v: 2, isExample: false, alloc: 100, strategy: 'avalanche', incomes: [], expenses: [], debts: [], lines: [] };
 let S = structuredClone(EXAMPLE);
 let showAllSched = false;
+/* Plan limit: set by the account layer (free plan = 3 debts). Unlimited when nothing sets it. */
+let LIMIT = Infinity;
+const blocked = why => { try { window.UtangApp?.onLimit?.(why); } catch {} };
 const colorOfDebt = d => PAL[((d.c ?? S.debts.indexOf(d)) % PAL.length + PAL.length) % PAL.length];
 
 /* ---------- persistence: phone app, claude.ai account, or this browser ---------- */
@@ -839,7 +843,7 @@ function renderEditors() {
       </div>
       <div class="foot" data-foot="${d.id}"></div>
     </article>`;
-  }).join('') + `<button class="adddebt" id="addDebt"><span class="plus">${icon('plus')}</span>Add a debt</button>`;
+  }).join('') + `<button class="adddebt" id="addDebt"><span class="plus">${icon('plus')}</span>Add a debt${LIMIT < Infinity && !S.isExample ? `<span class="lim">${Math.min(S.debts.length, LIMIT)} of ${LIMIT} on the free plan</span>` : ''}</button>`;
 
   const simple = (list, el, ph, col) => {
     $(el).innerHTML = S[list].length ? S[list].map(x => `<div class="li" style="--c:${col}"><i></i>${inp(x, 'name', { ph, label: 'Name' })}${inp(x, 'amount', { num: 1, label: 'Amount per month' })}${del(list, x.id, x.name || 'row')}</div>`).join('')
@@ -1251,7 +1255,11 @@ function renderSchedule(P) {
 function renderAll() { renderEditors(); renderOutputs(); }
 
 /* ---------- events ---------- */
-function touch() { if (S.isExample) S.isExample = false; scheduleSave(); }
+function touch() {
+  // On a limited plan the example figures (5 debts) are view-only: start your own plan instead of editing them.
+  if (S.isExample && S.debts.length > LIMIT) { S = structuredClone(EXAMPLE); renderAll(); blocked('example'); return false; }
+  if (S.isExample) S.isExample = false; scheduleSave(); return true;
+}
 let outTimer;
 document.addEventListener('input', e => {
   const t = e.target;
@@ -1298,6 +1306,8 @@ document.addEventListener('click', e => {
   if (t.dataset.color) { const d = S.debts.find(x => x.id === t.dataset.color); const i = S.debts.indexOf(d); d.c = ((d.c ?? i) + 1) % PAL.length; touch(); renderAll(); return; }
   if (t.dataset.del) { S[t.dataset.del] = S[t.dataset.del].filter(x => x.id !== t.dataset.id); touch(); renderAll(); return; }
   if (t.id === 'addDebt') {
+    if (S.isExample && LIMIT < Infinity) { blocked('example'); return; }
+    if (S.debts.length >= LIMIT) { blocked('add'); return; }
     const used = new Set(S.debts.map((d, i) => d.c ?? i)); let c = 0; while (used.has(c) && c < 7) c++;
     const d = { id: uid(), c, name: '', type: 'card', balance: '', rate: 3, basis: 'm', pay: '', term: '', due: '', limit: '' };
     S.debts.push(d); touch(); renderAll(); document.getElementById(`f-${d.id}-name`)?.focus(); return;
@@ -1318,6 +1328,7 @@ document.addEventListener('click', e => {
     try {
       const o = JSON.parse($('#restoreText').value.trim()); const d = o.data || o;
       if (!validState(d)) throw 0;
+      if (d.debts.length > LIMIT) { $('#backupMsg').textContent = `That backup has ${d.debts.length} debts. The free plan keeps up to ${LIMIT}.`; blocked('restore'); return; }
       S = d; S.isExample = false; scheduleSave(); renderAll();
       $('#backupMsg').textContent = 'Restored.'; $('#restoreText').value = '';
     } catch { $('#backupMsg').textContent = 'That isn’t a Utang Tracker backup. Paste the whole thing, starting with {'; }
@@ -1347,7 +1358,11 @@ window.UtangApp = {
   set: o => { if (!validState(o)) return false; S = o; writeLocal(JSON.stringify(S)); renderAll(); return true; },
   reset: () => { S = structuredClone(EXAMPLE); try { localStorage.removeItem('utang-tracker'); } catch {} renderAll(); },
   status: (kind, text) => status(kind, text),
-  valid: validState
+  valid: validState,
+  setLimit: n => { LIMIT = n > 0 ? n : Infinity; renderAll(); },
+  limit: () => LIMIT,
+  clearExample: () => { S = structuredClone(BLANK); scheduleSave(); renderAll(); },
+  onLimit: null
 };
 initStore();
 })();
