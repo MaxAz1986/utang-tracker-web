@@ -1,0 +1,56 @@
+{
+  "name": "utang-tracker",
+  "version": "2.0.7",
+  "description": "Debt payoff planner",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "author": "Max Azores",
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8",
+    "resedit": "2.0.3"
+  },
+  "productName": "Utang Tracker",
+  "build": {
+    "appId": "com.maxaz.utangtracker",
+    "productName": "Utang Tracker",
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "afterPack": "build/afterPack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Utang Tracker",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "artifactName": "Utang-Tracker-Setup.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": null
+  }
+}
